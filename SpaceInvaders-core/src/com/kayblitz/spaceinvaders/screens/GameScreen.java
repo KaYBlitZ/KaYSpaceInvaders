@@ -1,24 +1,42 @@
 package com.kayblitz.spaceinvaders.screens;
 
+import java.util.Random;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.InputProcessor;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.utils.Array;
-import com.kayblitz.spaceinvaders.Action;
 import com.kayblitz.spaceinvaders.SpaceInvaders;
 import com.kayblitz.spaceinvaders.entities.Bullet;
 import com.kayblitz.spaceinvaders.entities.Controller;
 import com.kayblitz.spaceinvaders.entities.Enemy;
 import com.kayblitz.spaceinvaders.entities.Entity;
+import com.kayblitz.spaceinvaders.resources.Resources;
 
-public class GameScreen implements UpdateableScreen {
+public class GameScreen implements InputProcessor, UpdateableScreen {
+	
+	private static final int ENEMY_LENGTH = 7;
+	private static final int ENEMY_HEIGHT = 5;
+	private static final int ENEMY_DISTANCE_X = 70;
+	private static final int ENEMY_DISTANCE_Y = 50;
+	private static final int ENEMY_START_Y = SpaceInvaders.HEIGHT - 100;
 	
 	private SpaceInvaders game;
 	private SpriteBatch batch;
 	private ShapeRenderer renderer;
+	private Resources resources;
 	
 	private Controller controller;
 	private Array<Enemy> enemies;
 	private Array<Bullet> bullets;
+	private BitmapFont font;
+	private GlyphLayout layout;
 	private int enemiesDefeated;
 	private float time;
 	private boolean isGameOver;
@@ -28,28 +46,60 @@ public class GameScreen implements UpdateableScreen {
 		this.game = game;
 		batch = game.getSpriteBatch();
 		renderer = game.getShapeRenderer();
+		resources = game.getResources();
+		font = resources.getFont("arial_32.fnt");
+		layout = new GlyphLayout();
+		
+		Random random = new Random();
 		enemies = new Array<Enemy>(false, 50);
+		
+		for (int i = 0; i < ENEMY_LENGTH; i++) {
+			for (int j = 0; j < ENEMY_HEIGHT; j++) {
+				Texture texture = null;
+				switch(random.nextInt(4)) {
+				case 0:
+					texture = resources.getTexture("enemyBlack2.png");
+					break;
+				case 1:
+					texture = resources.getTexture("enemyBlue2.png");
+					break;
+				case 2:
+					texture = resources.getTexture("enemyGreen2.png");
+					break;
+				case 3:
+					texture = resources.getTexture("enemyRed2.png");
+					break;
+				}
+				enemies.add(new Enemy(i * ENEMY_DISTANCE_X, ENEMY_START_Y - j * ENEMY_DISTANCE_Y, texture, this));
+			}
+		}
+		
 		bullets = new Array<Bullet>(false, 50);
+		
+		controller = new Controller(SpaceInvaders.WIDTH / 2, 0, resources, this);
 		
 		enemiesDefeated = 0;
 		time = 0f;
 		lives = 3;
 		isGameOver = false;
-		Enemy.velocity = 10f;
+		Enemy.velocity = Enemy.INITIAL_VELOCITY;
 	}
 	
 	@Override
-	public void show() {}
+	public void show() {
+		font.setColor(Color.WHITE);
+		Gdx.input.setInputProcessor(this);
+	}
 	
 	@Override
 	public void update(float delta) {
 		if (!isGameOver) {
 			time += delta;
 			
-			if (time > 30f) {
-				Enemy.velocity = 20f;
-			} else if (time > 15f) {
-				Enemy.velocity = 15f;
+			if (time > 35f) {
+				Enemy.velocity = 100f;
+			} else if (time > 20f) {
+				Enemy.velocity = 75f;
 			}
 			
 			for (Entity enemy : enemies) {
@@ -70,21 +120,36 @@ public class GameScreen implements UpdateableScreen {
 			controller.update(delta, enemies, bullets);
 			
 			checkCollision();
+			checkBullets();
 		}
 	}
 
 	@Override
 	public void render(float delta) {
-		if (!isGameOver) {
-			for (Enemy enemy : enemies) {
-				enemy.render(batch, renderer);
-			}
-			for (Bullet bullet : bullets) {
-				bullet.render(batch, renderer);
-			}
-		} else {
-			
+		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+		
+		batch.begin();
+		for (Bullet bullet : bullets) {
+			bullet.render(batch, renderer);
 		}
+		for (Enemy enemy : enemies) {
+			enemy.render(batch, renderer);
+		}
+		controller.render(batch, renderer, lives);
+		
+		layout.setText(font, String.format("Lives: %d", lives));
+		font.draw(batch, layout, 0f, SpaceInvaders.HEIGHT);
+		float livesHeight = layout.height;
+		layout.setText(font, String.format("Enemes Defeated: %d", enemiesDefeated));
+		font.draw(batch, layout, 0f, SpaceInvaders.HEIGHT - livesHeight);
+		layout.setText(font, String.format("Time: %.3f", time));
+		font.draw(batch, layout, SpaceInvaders.WIDTH - layout.width, SpaceInvaders.HEIGHT);
+		
+		if (isGameOver) {
+			layout.setText(font, "Game Over");
+			font.draw(batch, layout, SpaceInvaders.WIDTH / 2 - layout.width / 2, SpaceInvaders.HEIGHT / 2 + layout.height / 2);
+		}
+		batch.end();
 	}
 
 	@Override
@@ -109,14 +174,14 @@ public class GameScreen implements UpdateableScreen {
 			for (int j = 0; j < bullets.size; j++) {
 				Bullet bullet = bullets.get(j);
 				
-				if (enemy.checkCollision(bullet)) {
+				if (bullet.getDirection() == 1 && enemy.checkCollision(bullet)) {
 					enemiesDefeated++;
 					enemies.removeIndex(i);
 					i--; // array gets compressed after removal
 					// don't skip over replacement entity at this index
 					bullets.removeIndex(j);
 					j--; // don't skip over replacement
-				} else if (controller.checkCollision(bullet)) {
+				} else if (bullet.getDirection() == -1 && controller.checkCollision(bullet)) {
 					bullets.removeIndex(j);
 					j--;
 					if (--lives == 0) {
@@ -127,11 +192,78 @@ public class GameScreen implements UpdateableScreen {
 		}
 	}
 	
+	// check if a bullet is off the map and remove it
+	public void checkBullets() {
+		for (int i = 0; i < bullets.size; i++) {
+			Bullet bullet = bullets.get(i);
+			float y = bullet.getY() + bullet.getHeight();
+			
+			if (y < 0 || y > SpaceInvaders.HEIGHT) {
+				bullets.removeIndex(i);
+				i--;
+			}
+		}
+	}
+	
 	public void setGameOver(boolean isGameOver) {
 		this.isGameOver = isGameOver;
 	}
 	
 	public void createBullet(float x, float y, int direction) {
-		bullets.add(new Bullet(x, y, direction));
+		if (direction == 1) { // player bullet
+			bullets.add(new Bullet(x, y, resources.getTexture("laserRed07.png"), direction));
+		} else { // enemy bullet
+			bullets.add(new Bullet(x, y, resources.getTexture("laserBlue07.png"), direction));
+		}
+	}
+
+	@Override
+	public boolean keyDown(int keycode) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean keyUp(int keycode) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean keyTyped(char character) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean touchDown(int screenX, int screenY, int pointer, int button) {
+		if (isGameOver) {
+			game.setScreen(new MainMenuScreen(game));
+		}
+		return true;
+	}
+
+	@Override
+	public boolean touchUp(int screenX, int screenY, int pointer, int button) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean touchDragged(int screenX, int screenY, int pointer) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean mouseMoved(int screenX, int screenY) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean scrolled(int amount) {
+		// TODO Auto-generated method stub
+		return false;
 	}
 }
