@@ -1,8 +1,10 @@
 package com.kayblitz.spaceinvaders.screens;
 
+import java.util.Iterator;
 import java.util.Random;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input.Keys;
 import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
@@ -97,9 +99,9 @@ public class GameScreen implements InputProcessor, UpdateableScreen {
 			time += delta;
 			
 			if (time > 35f) {
-				Enemy.velocity = 100f;
+				Enemy.velocity = 150f;
 			} else if (time > 20f) {
-				Enemy.velocity = 75f;
+				Enemy.velocity = 100f;
 			}
 			
 			for (Entity enemy : enemies) {
@@ -117,7 +119,7 @@ public class GameScreen implements InputProcessor, UpdateableScreen {
 				}
 			}
 			
-			controller.update(delta, enemies, bullets);
+			controller.update(delta);
 			
 			checkCollision();
 			checkBullets();
@@ -168,25 +170,27 @@ public class GameScreen implements InputProcessor, UpdateableScreen {
 	public void dispose() {}
 	
 	public void checkCollision() {
-		for (int i = 0; i < enemies.size; i++) {
-			Entity enemy = enemies.get(i);
+		Iterator<Bullet> bulletIterator = bullets.iterator();
+		while (bulletIterator.hasNext()) {
+			Bullet bullet = bulletIterator.next();
 			
-			for (int j = 0; j < bullets.size; j++) {
-				Bullet bullet = bullets.get(j);
+			Iterator<Enemy> enemyIterator = enemies.iterator();
+			while (enemyIterator.hasNext()) {
+				Enemy enemy = enemyIterator.next();
 				
 				if (bullet.getDirection() == 1 && enemy.checkCollision(bullet)) {
-					enemiesDefeated++;
-					enemies.removeIndex(i);
-					i--; // array gets compressed after removal
-					// don't skip over replacement entity at this index
-					bullets.removeIndex(j);
-					j--; // don't skip over replacement
+					enemyIterator.remove();
+					bulletIterator.remove();
+					if (++enemiesDefeated == ENEMY_LENGTH * ENEMY_HEIGHT) {
+						isGameOver = true;
+					}
+					break;
 				} else if (bullet.getDirection() == -1 && controller.checkCollision(bullet)) {
-					bullets.removeIndex(j);
-					j--;
+					bulletIterator.remove();
 					if (--lives == 0) {
 						isGameOver = true;
 					}
+					break;
 				}
 			}
 		}
@@ -194,13 +198,12 @@ public class GameScreen implements InputProcessor, UpdateableScreen {
 	
 	// check if a bullet is off the map and remove it
 	public void checkBullets() {
-		for (int i = 0; i < bullets.size; i++) {
-			Bullet bullet = bullets.get(i);
+		Iterator<Bullet> bulletIterator = bullets.iterator();
+		while (bulletIterator.hasNext()) {
+			Bullet bullet = bulletIterator.next();
 			float y = bullet.getY() + bullet.getHeight();
-			
 			if (y < 0 || y > SpaceInvaders.HEIGHT) {
-				bullets.removeIndex(i);
-				i--;
+				bulletIterator.remove();
 			}
 		}
 	}
@@ -219,14 +222,27 @@ public class GameScreen implements InputProcessor, UpdateableScreen {
 
 	@Override
 	public boolean keyDown(int keycode) {
-		// TODO Auto-generated method stub
-		return false;
+		if (keycode == Keys.LEFT) {
+			controller.setLeft(true);
+		} else if (keycode == Keys.RIGHT) {
+			controller.setRight(true);
+		} else if (keycode == Keys.SPACE) {
+			controller.setShoot(true);
+		}
+		return true;
 	}
 
 	@Override
 	public boolean keyUp(int keycode) {
-		// TODO Auto-generated method stub
-		return false;
+		if (keycode == Keys.LEFT) {
+			controller.setLeft(false);
+		} else if (keycode == Keys.RIGHT) {
+			controller.setRight(false);
+		} else if (keycode == Keys.SPACE) {
+			controller.setShoot(false);
+			controller.setCanShoot(true);
+		}
+		return true;
 	}
 
 	@Override

@@ -9,7 +9,7 @@ import com.kayblitz.spaceinvaders.SpaceInvaders;
 import com.kayblitz.spaceinvaders.screens.GameScreen;
 
 public class Enemy extends Entity {	
-	public static final float MOVE_DOWN_AMOUNT = 20f;
+	public static final float MOVE_DOWN_AMOUNT = 30f;
 	public static final float THRESHOLD = 50f;
 	public static final float INITIAL_VELOCITY = 50f;
 	
